@@ -4,9 +4,11 @@ import * as random from "@pulumi/random";
 import * as k8s from "@pulumi/kubernetes";
 import * as cluster from "./cluster";
 import TraefikRoute from "./TraefikRoute";
+import * as azuread from "@pulumi/azuread";
+
 
 const config = new pulumi.Config();
-export const tenantId = config.require("tenantId");
+const tenantId = config.require("tenantId");
 //create new resource group
 //const MLGroup = new azure.core.ResourceGroup("MLGroup", {location: "South Central US"});
 
@@ -16,6 +18,18 @@ const serverpassword = new random.RandomPassword("password", {
     special: true,
     overrideSpecial: `!@#$%&*()-_=+[]{}<>:?`,
 });
+
+// Create the AD service principal for the K8s cluster.
+const addApp = new azuread.Application("addApp", {
+    displayName: "my-aks-cluster",
+});
+const addSp = new azuread.ServicePrincipal("service-principal", {
+    applicationId: addApp.applicationId,
+});
+const addSpPassword = new azuread.ServicePrincipalPassword("sp-password", {
+    servicePrincipalId: addSp.id,
+});
+
 
 // create postgresql server for our model matadata in MLFLOW
 const mlflowDBserver = new azure.postgresql.Server("mlflow-db-server", {
@@ -34,7 +48,7 @@ const mlflowDBserver = new azure.postgresql.Server("mlflow-db-server", {
     identity: {
         type: "SystemAssigned",
         principalId: addApp.id,
-        tenantId: config.tenantId,
+        tenantId: tenantId,
     }
 });
 //creating postgresql database
